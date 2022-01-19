@@ -130,7 +130,6 @@ def shap_plots(shap_values, classifier_type):
                     feature_block_vals[key] += shap_values1[i]
                 
             
-    print(feature_block_vals['WeightKg'])
     vals = np.expand_dims(np.array(list(feature_block_vals.values())), axis=0)
     df = pd.DataFrame(columns=list(feature_block_vals.keys()))
     shap.summary_plot(vals, df.columns, plot_type = 'bar')
@@ -163,7 +162,7 @@ y_total = np.ravel(df_y.to_numpy())
 X_full_train, X_full_test, y_full_train, y_full_test= train_test_split(X_total, y_total, test_size=0.2, random_state=42)
 
 # balance the full data
-undersample = RandomUnderSampler(sampling_strategy=0.333) # 855 - 0s, 285 - 1s
+undersample = RandomUnderSampler(sampling_strategy=0.01) # 855 - 0s, 285 - 1s
 X_under, y_under = undersample.fit_resample(X_total, y_total)
 
 # extract test and train for small dataset
@@ -192,19 +191,21 @@ df_X_train = pd.DataFrame(X_train, columns = df_X.columns)
 
 print("Logistic Regression")
 
+'''
 # do grid search for elastic net
-#grid={"l1_ratio": [0, 0.25, 0.5, 0.75, 1]}# l1 lasso l2 ridge
-#log = LogisticRegression(penalty='elasticnet', solver='saga', random_state=0, max_iter=500)
-#log_cv = GridSearchCV(log,grid,cv=2)
-#log_cv.fit(X_train,y_train)
+grid={"l1_ratio": [0, 0.25, 0.5, 0.75, 1]}# l1 lasso l2 ridge
+log = LogisticRegression(penalty='elasticnet', solver='saga', random_state=0, max_iter=5000)
+log_cv = GridSearchCV(log,grid,cv=10)
+log_cv.fit(X_train,y_train)
 
-#print("tuned hyperparameters :(best parameters) ",log_cv.best_params_)
+print("tuned hyperparameters :(best parameters) ",log_cv.best_params_)
 
 # train model with grid best parameters
-#best_l1_ratio = log_cv.best_params_['l1_ratio']
-#best_l1_ratio = 0.1
-#clf = LogisticRegression(penalty='elasticnet',solver='saga', l1_ratio=0, random_state=0, max_iter=10000)
-clf = LogisticRegression(random_state=0, tol=1e-03, max_iter=1000).fit(X_train, y_train)
+best_l1_ratio = log_cv.best_params_['l1_ratio']
+clf = LogisticRegression(penalty='elasticnet',solver='saga', l1_ratio=best_l1_ratio, random_state=0, max_iter=5000)
+'''
+#clf = LogisticRegression(random_state=0, max_iter=5000).fit(X_train, y_train)
+clf = LogisticRegression(penalty='elasticnet',solver='saga', l1_ratio=0, random_state=0, max_iter=5000)
 clf.fit(X_train, y_train)
 
 # evaluation
@@ -214,21 +215,23 @@ roc_value = roc_auc_score(y_test, rf_probs)
 print("AUC: ", roc_value)
 metrics.plot_roc_curve(clf, X_test, y_test)
 plt.show()
-
+ 
 # feature importance
 background_adult = shap.maskers.Independent(X_train, max_samples=100)
 explainer = shap.Explainer(clf, background_adult)
 shap_values_lg = explainer.shap_values(X_train)
 shap_plots(shap_values_lg, 'logistic_regression')
-
+ 
 
 # RANDOM FOREST CLASSIFIER -------------------------------------------------#
 
+import time     
+start = time.process_time()        
 
 print("\n Random Forest Classifier")
 
-# hyper parameter definition
-params = {'n_estimators':1000}
+# hyper parameter definition       
+params = {'n_estimators':1000}   
 
 # train model on subset of dataset
 rf = RandomForestClassifier(random_state=0, n_estimators=params['n_estimators'])
@@ -241,8 +244,15 @@ roc_value = roc_auc_score(y_test, rf_probs)
 print("AUC: ", roc_value)
 metrics.plot_roc_curve(rf, X_test, y_test)
 plt.show()
+print('Finished ROC Curve')
 
 # tree explainer feature importances
 explainer = shap.TreeExplainer(rf)
+print('Shap Values')
 shap_values = explainer.shap_values(df_X_train)
+print('Shap Plots')
 shap_plots(shap_values, 'random_forest')
+
+# your code here    
+print('random forest time to complete ', time.process_time() - start)
+
